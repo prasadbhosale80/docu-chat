@@ -118,7 +118,7 @@ function EnabledDocumentChat({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           threadId,
-          messages: [{ role: userMessage.role, content: userMessage.content }],
+          question: userMessage.content,
           fields,
           ocrText,
         }),

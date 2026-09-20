@@ -60,6 +60,7 @@ export async function extractLicenceFromImage(input: {
       temperature: 0,
       maxOutputTokens: 4096,
       streaming: false,
+      thinkingConfig: { thinkingBudget: 0 },
     }).withStructuredOutput<LicenceExtraction>(licenceExtractionSchema, {
       name: "licence_extraction",
     });

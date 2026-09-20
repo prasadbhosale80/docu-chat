@@ -1,5 +1,9 @@
 import { MemorySaver } from "@langchain/langgraph";
-import { createAgent, dynamicSystemPromptMiddleware } from "langchain";
+import {
+  createAgent,
+  dynamicSystemPromptMiddleware,
+  summarizationMiddleware,
+} from "langchain";
 import { z } from "zod";
 
 import {
@@ -11,7 +15,10 @@ import {
 } from "@/lib/gemini";
 import { chatRequestSchema, formatLicenceFields } from "@/lib/licence-schema";
 import { enforceChatRateLimit } from "@/lib/rate-limit";
-import { ASK_DOCUMENT_SYSTEM_PROMPT } from "@/prompts/ask-document";
+import {
+  ASK_DOCUMENT_SYSTEM_PROMPT,
+  CONVERSATION_SUMMARY_PROMPT,
+} from "@/prompts/ask-document";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -33,17 +40,30 @@ function getCheckpointer() {
 }
 
 function createDocumentAgent() {
+  const model = getGeminiModel({
+    maxOutputTokens: 8192,
+    streaming: false,
+    // Gemini 3 defaults to high thinking, which can spend the whole
+    // token budget on hidden reasoning and return no visible text.
+    thinkingConfig: { thinkingLevel: "LOW" },
+  });
+
   return createAgent({
-    model: getGeminiModel({
-      maxOutputTokens: 8192,
-      streaming: false,
-      // Gemini 3 defaults to high thinking, which can spend the whole
-      // token budget on hidden reasoning and return no visible text.
-      thinkingConfig: { thinkingLevel: "LOW" },
-    }),
+    model,
     checkpointer: getCheckpointer(),
     contextSchema: documentContextSchema,
     middleware: [
+      summarizationMiddleware({
+        model: getGeminiModel({
+          temperature: 0,
+          maxOutputTokens: 1024,
+          streaming: false,
+          thinkingConfig: { thinkingBudget: 0 },
+        }),
+        trigger: { messages: 10 },
+        keep: { messages: 6 },
+        summaryPrompt: CONVERSATION_SUMMARY_PROMPT,
+      }),
       dynamicSystemPromptMiddleware<DocumentContext>((_state, runtime) =>
         [
           ASK_DOCUMENT_SYSTEM_PROMPT,
@@ -74,21 +94,11 @@ export async function POST(request: Request) {
       return Response.json({ error: "Invalid request." }, { status: 400 });
     }
 
-    const { threadId, messages, fields, ocrText } = parsed.data;
-    const lastUser = [...messages]
-      .reverse()
-      .find((message) => message.role === "user");
-
-    if (!lastUser) {
-      return Response.json(
-        { error: "A user question is required." },
-        { status: 400 },
-      );
-    }
+    const { threadId, question, fields, ocrText } = parsed.data;
 
     const result = await createDocumentAgent().invoke(
       {
-        messages: [{ role: "user", content: lastUser.content }],
+        messages: [{ role: "user", content: question }],
       },
       {
         configurable: { thread_id: threadId },

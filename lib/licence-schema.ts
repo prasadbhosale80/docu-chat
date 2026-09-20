@@ -85,14 +85,9 @@ export const licenceExtractionSchema = z.object({
   ),
 });
 
-export const chatMessageSchema = z.object({
-  role: z.enum(["user", "assistant"]),
-  content: z.string().min(1),
-});
-
 export const chatRequestSchema = z.object({
   threadId: z.string().uuid(),
-  messages: z.array(chatMessageSchema).min(1).max(40),
+  question: z.string().min(1).max(4000),
   fields: licenceFieldsSchema.optional(),
   ocrText: z.string().max(80_000).optional(),
 });

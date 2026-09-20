@@ -10,12 +10,18 @@ import {
   publicAiErrorMessage,
 } from "@/lib/gemini";
 import { toExtractResponse } from "@/lib/licence-schema";
+import { enforceExtractRateLimit } from "@/lib/rate-limit";
 import { imageMimeType, MAX_IMAGE_BYTES } from "@/lib/upload";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  const limited = await enforceExtractRateLimit(request);
+  if (limited) {
+    return limited;
+  }
+
   try {
     let form: FormData;
     try {

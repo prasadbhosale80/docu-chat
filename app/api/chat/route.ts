@@ -11,6 +11,7 @@ import {
   UpstreamError,
 } from "@/lib/gemini";
 import { chatRequestSchema, formatLicenceFields } from "@/lib/licence-schema";
+import { enforceChatRateLimit } from "@/lib/rate-limit";
 import { ASK_DOCUMENT_SYSTEM_PROMPT } from "@/prompts/ask-document";
 
 export const runtime = "nodejs";
@@ -162,6 +163,11 @@ function updatesFallbackText(event: unknown): string {
 }
 
 export async function POST(request: Request) {
+  const limited = await enforceChatRateLimit(request);
+  if (limited) {
+    return limited;
+  }
+
   try {
     let body: unknown;
     try {

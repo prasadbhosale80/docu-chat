@@ -13,6 +13,7 @@ Upload a driving licence photo, review the extracted fields, then ask questions 
 | LLM            | Google Gemini via `@langchain/google-genai`                                                                 |
 | Agents         | LangChain `createAgent` + LangGraph `MemorySaver`                                                           |
 | Validation     | Zod schemas shared by the form, extract API, and chat API                                                   |
+| Rate limiting  | `express-rate-limit` (in-memory, per Node.js process): extract 2/min, chat 20/min                           |
 
 Runtime AI calls stay on the server (`server-only` in `lib/gemini.ts` and `lib/extract-licence.ts`). Route handlers use the Node.js runtime with a 60s `maxDuration`.
 
@@ -53,6 +54,7 @@ Browser
 | `lib/extract-licence.ts`           | Vision call + licence validity check      |
 | `lib/licence-schema.ts`            | Shared Zod schemas and date normalisation |
 | `lib/gemini.ts`                    | Model factory and safe error mapping      |
+| `lib/rate-limit.ts`                | Per-IP extract/chat limits                |
 | `prompts/`                         | System prompts for extract and chat       |
 
 ## Setup / run
@@ -141,7 +143,7 @@ Two Gemini calls, two jobs. The image is not sent again at chat time.
 - **Extraction quality depends on the photo.** Glare, crop, handwriting, and unusual licence layouts can omit fields or fail the “invalid licence” check.
 - **Date handling is opinionated.** Incomplete or ambiguous dates are dropped. Day/month order can be wrong on US-style numeric dates.
 - **Chat context is bounded.** OCR text is capped at 80 000 characters on the chat request. The agent has no tools and cannot look at the original image again.
-- **No auth, rate limiting, or abuse controls** on the API routes.
+- **No auth.** Extract is limited to 2 requests per IP per minute and chat to 20. Limits live in the Node.js process memory, so they reset on restart and are not shared across instances.
 - **Gemini 3 thinking.** Even with `LOW` thinking, some models can still return empty visible text under tight token budgets.
 
 ## AI development tools used

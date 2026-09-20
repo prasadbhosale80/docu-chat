@@ -38,6 +38,10 @@ async function readApiError(response: Response) {
     // Ignore non-JSON error bodies.
   }
 
+  if (response.status === 429) {
+    return "Too many chat requests. You can send 20 messages per minute. Please try again in a minute.";
+  }
+
   return `Unable to answer from this document (${response.status}).`;
 }
 
@@ -147,7 +151,9 @@ function EnabledDocumentChat({
 
       assistantText += decoder.decode();
       if (!assistantText.trim()) {
-        throw new Error("The model returned an empty answer. Please retry shortly.");
+        throw new Error(
+          "The model returned an empty answer. Please retry shortly.",
+        );
       }
     } catch (sendError) {
       if (controller.signal.aborted) {

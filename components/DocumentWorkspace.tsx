@@ -38,6 +38,10 @@ async function readApiError(response: Response) {
     // Ignore non-JSON error bodies.
   }
 
+  if (response.status === 429) {
+    return "Too many extract requests. You can extract 2 documents per minute. Please try again in a minute.";
+  }
+
   return `Could not extract licence fields (${response.status}).`;
 }
 

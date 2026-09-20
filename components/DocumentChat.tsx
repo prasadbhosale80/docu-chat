@@ -74,7 +74,7 @@ function EnabledDocumentChat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -88,7 +88,7 @@ function EnabledDocumentChat({
 
   async function send(question: string) {
     const trimmed = question.trim();
-    if (!trimmed || isStreaming) {
+    if (!trimmed || isSending) {
       return;
     }
 
@@ -106,7 +106,7 @@ function EnabledDocumentChat({
 
     setInput("");
     setError(null);
-    setIsStreaming(true);
+    setIsSending(true);
     setMessages([...history, userMessage, assistantMessage]);
 
     const controller = new AbortController();
@@ -125,38 +125,37 @@ function EnabledDocumentChat({
         signal: controller.signal,
       });
 
-      if (!response.ok || !response.body) {
+      if (!response.ok) {
         throw new Error(await readApiError(response));
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let assistantText = "";
+      const data: unknown = await response.json();
+      const content =
+        data &&
+        typeof data === "object" &&
+        "content" in data &&
+        typeof data.content === "string"
+          ? data.content.trim()
+          : "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-        assistantText += decoder.decode(value, { stream: true });
-        const nextText = assistantText;
-        setMessages((current) =>
-          current.map((message) =>
-            message.id === assistantMessage.id
-              ? { ...message, content: nextText }
-              : message,
-          ),
-        );
-      }
-
-      assistantText += decoder.decode();
-      if (!assistantText.trim()) {
+      if (!content) {
         throw new Error(
           "The model returned an empty answer. Please retry shortly.",
         );
       }
+
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === assistantMessage.id
+            ? { ...message, content }
+            : message,
+        ),
+      );
     } catch (sendError) {
       if (controller.signal.aborted) {
+        setMessages((current) =>
+          current.filter((message) => message.id !== assistantMessage.id),
+        );
         return;
       }
       setMessages((current) =>
@@ -174,13 +173,13 @@ function EnabledDocumentChat({
       if (abortRef.current === controller) {
         abortRef.current = null;
       }
-      setIsStreaming(false);
+      setIsSending(false);
     }
   }
 
   function stop() {
     abortRef.current?.abort();
-    setIsStreaming(false);
+    setIsSending(false);
   }
 
   return (
@@ -259,7 +258,7 @@ function EnabledDocumentChat({
             }
           }}
         />
-        {isStreaming ? (
+        {isSending ? (
           <Button type="button" size="icon" onClick={stop} aria-label="Stop">
             <Square />
           </Button>
